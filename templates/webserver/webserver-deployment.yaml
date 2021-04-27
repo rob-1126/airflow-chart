@@ -38,7 +38,7 @@ spec:
         checksum/metadata-secret: {{ include (print $.Template.BasePath "/secrets/metadata-connection-secret.yaml") . | sha256sum }}
         checksum/pgbouncer-config-secret: {{ include (print $.Template.BasePath "/secrets/pgbouncer-config-secret.yaml") . | sha256sum }}
         checksum/airflow-config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
-        checksum/oauth2-proxy-config: {{ include (print $.Template.BasePath "/webserver/oauth2-proxy-configmap.yaml") . | sha256sum }}
+        checksum/oathkeeper-config: {{ include (print $.Template.BasePath "/webserver/oathkeeper-configmap.yaml") . | sha256sum }}
         {{- if .Values.airflowPodAnnotations }}
         {{- toYaml .Values.airflowPodAnnotations | nindent 8 }}
         {{- end }}
@@ -65,33 +65,39 @@ spec:
           env:
           {{- include "standard_airflow_environment" . | indent 10 }}
       containers:
-        - name: oauth2-proxy
-          image: quay.io/oauth2-proxy/oauth2-proxy:latest
+        - name: oathkeeper
+          image: oryd/oathkeeper:v0.38.3-beta.1
           args:
-            - --config=/etc/oauth2-proxy.cfg
+            - serve
+            - --config=/etc/oathkeeper/config.yaml
           volumeMounts:
-            - name: oauth2-proxy-config
-              mountPath: /etc/oauth2-proxy.cfg
-              subPath: oauth2-proxy.cfg
-          env:
-            - name: OAUTH2_PROXY_CLIENT_ID
-              valueFrom:
-                secretKeyRef:
-                  name: {{ printf "%s-oauth2-proxy" .Release.Name }}
-                  key: client-id
-            - name: OAUTH2_PROXY_CLIENT_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: {{ printf "%s-oauth2-proxy" .Release.Name }}
-                  key: client-secret
-            - name: OAUTH2_PROXY_COOKIE_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: {{ printf "%s-oauth2-proxy" .Release.Name }}
-                  key: cookie-secret
+            - name: oathkeeper-config
+              mountPath: /etc/oathkeeper/config.yaml
+              subPath: config.yaml
+            - name: oathkeeper-config
+              mountPath: /etc/oathkeeper/rules.yaml
+              subPath: rules.yaml
+          # env:
+          #   - name: OAUTH2_PROXY_CLIENT_ID
+          #     valueFrom:
+          #       secretKeyRef:
+          #         name: {{ printf "%s-oauth2-proxy" .Release.Name }}
+          #         key: client-id
+          #   - name: OAUTH2_PROXY_CLIENT_SECRET
+          #     valueFrom:
+          #       secretKeyRef:
+          #         name: {{ printf "%s-oauth2-proxy" .Release.Name }}
+          #         key: client-secret
+          #   - name: OAUTH2_PROXY_COOKIE_SECRET
+          #     valueFrom:
+          #       secretKeyRef:
+          #         name: {{ printf "%s-oauth2-proxy" .Release.Name }}
+          #         key: cookie-secret
           ports:
-            - containerPort: 4180
-              name: oauth2-http
+            - containerPort: 4455
+              name: oathkeeper
+            - containerPort: 4456
+              name: oathkeeper-api
         - name: webserver
           image: {{ template "airflow_image" . }}
           imagePullPolicy: {{ .Values.images.airflow.pullPolicy }}
@@ -153,9 +159,11 @@ spec:
           secret:
             secretName: {{ .Values.webserver.jwtSigningCertificateSecretName }}
 {{- end }}
-        - name: oauth2-proxy-config
+        - name: oathkeeper-config
           configMap:
-            name: {{ printf "%s-oauth2-proxy" .Release.Name }}
+            name: {{ printf "%s-oathkeeper" .Release.Name }}
             items:
-              - key: oauth2-proxy.cfg
-                path: oauth2-proxy.cfg
+              - key: config.yaml
+                path: config.yaml
+              - key: rules.yaml
+                path: rules.yaml

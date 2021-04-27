@@ -1,0 +1,55 @@
+################################
+## Oathkeeper ConfigMap
+#################################
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ printf "%s-oathkeeper" .Release.Name }}
+  labels:
+    tier: airflow
+    component: config
+    release: {{ .Release.Name }}
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    heritage: {{ .Release.Service }}
+{{- with .Values.labels }}
+{{ toYaml . | indent 4 }}
+{{- end }}
+data:
+  # Oathkeeper Configuration
+  config.yaml: |
+    serve:
+      proxy:
+        port: 4455
+      api:
+        port: 4456
+    access_rules:
+      repositories:
+        - file:///etc/oathkeeper/rules.yaml
+    authorizers:
+      allow:
+        enabled: true
+    authenticators:
+      noop:
+        enabled: true
+    mutators:
+      noop:
+        enabled: true
+
+  # Oathkeeper Rules
+  rules.yaml: |
+    - id: airflow
+      upstream:
+        url: http://127.0.0.1:8080
+      match:
+        url: http://<127.0.0.1|localhost>:8080/<.*>
+        methods:
+          - GET
+          - POST
+      authenticators:
+        - handler: noop
+      authorizer:
+        handler: allow
+      mutators:
+        - handler: noop
+      errors:
+        - handler: json
