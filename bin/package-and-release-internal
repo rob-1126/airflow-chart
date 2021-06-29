@@ -5,7 +5,7 @@
 set -uex
 
 git_root="$(git rev-parse --show-toplevel)"
-app_version=$(awk '$0 ~ "^airflowVersion:" {print $2}' values.yaml)
+app_version=$(awk '$0 ~ /^airflowVersion:/ {print $2}' values.yaml)
 helm_repo="internal-helm.astronomer.io"
 extra_args=()
 
